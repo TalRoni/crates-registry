@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+  packing:
+    image: crates-registry:latest
+    volumes:
+      - /path/to/folder:/folder
+    environment:
+      - RUST_LOG=info
+    command: "pack --rust-version 1.68.0 --platform x86_64-unknown-linux-gnu --pack-file /folder/packed_file.tar"
+  unpacking:
+    image: crates-registry:latest
+    volumes:
+      - /path/to/folder:/folder
+      - /path/to/registry:/registry
+    environment:
+      - RUST_LOG=info
+    command: "unpack --packed-file /folder/packed_file.tar --root-registry /registry"
+  serving:
+    image: crates-registry:latest
+    volumes:
+      - /path/to/registry:/registry
+    environment:
+      - RUST_LOG=info
+    ports:
+      - 80:80
+    command: "serve --root-registry /registry -s <server-ip>:80"

@@ -1,0 +1,248 @@
+use std::fs::create_dir;
+use std::fs::OpenOptions;
+use std::io::Write as _;
+use std::net::SocketAddr;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+
+use anyhow::anyhow;
+use anyhow::bail;
+use anyhow::Context as _;
+use anyhow::Result;
+
+use reqwest::Url;
+use tempfile::tempdir;
+
+use tokio::net::TcpListener;
+use tokio::spawn;
+use tokio::task::JoinHandle;
+
+use crates_registry::serve;
+
+const REGISTRY: &str = "e2e-test-registry";
+
+/// A locator for a registry.
+enum Locator {
+    /// A path on the file system to the root of the registry.
+    Path(PathBuf),
+    /// A socket address for HTTP based access of the registry.
+    Socket(SocketAddr),
+}
+
+async fn get_available_port() -> u16 {
+    for port in 5000..6000 {
+        if port_is_available(port).await {
+            return port
+        }
+    }
+    panic!("No port available");
+}
+
+async fn port_is_available(port: u16) -> bool {
+    match TcpListener::bind(("127.0.0.1", port)).await {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+/// Append data to a file.
+fn append<B>(file: &Path, data: B) -> Result<()>
+where
+    B: AsRef<[u8]>,
+{
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .append(true)
+        .open(file)
+        .context("failed to open file for writing")?;
+
+    file.write(data.as_ref()).context("failed to append data")?;
+    Ok(())
+}
+
+/// Set up the cargo home directory to use.
+fn setup_cargo_home(root: &Path, registry_locator: Locator) -> Result<PathBuf> {
+    let home = root.join(".cargo");
+    create_dir(&home).context("failed to create cargo home directory")?;
+    let config = home.join("config.toml");
+    let data = match registry_locator {
+        Locator::Path(path) => {
+            format!(
+                r#"
+[registries.{registry}]
+index = "{path}"
+token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+"#,
+                registry = REGISTRY,
+                path = Url::from_file_path(path).map_err(|_| anyhow!("Can't convert path to url"))?.to_string(),
+            )
+        }
+        Locator::Socket(addr) => {
+            format!(
+                r#"
+[registries.{registry}]
+index = "http://{addr}/git/index"
+token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+"#,
+                registry = REGISTRY,
+                addr = addr,
+            )
+        }
+    };
+
+    append(&config, data)?;
+    Ok(home)
+}
+
+/// Run a cargo command.
+async fn cargo<'s, I>(home: &Path, args: I) -> Result<()>
+where
+    I: IntoIterator<Item = &'s str>,
+{
+    let mut command = Command::new("cargo");
+    command.env("CARGO_HOME", home).args(args);
+
+    let handle = tokio::task::spawn_blocking(move || {
+        let status = command.status().context("failed to execute cargo")?;
+        if !status.success() {
+            bail!("cargo failed execution")
+        }
+        Ok(())
+    });
+    handle.await.unwrap()
+}
+
+/// Run 'cargo init' with the provided arguments and some sensible
+/// default ones.
+async fn cargo_init<'s, I>(home: &Path, args: I) -> Result<()>
+where
+    I: IntoIterator<Item = &'s str>,
+{
+    let args = vec!["init", "--vcs", "none", "--registry", REGISTRY]
+        .into_iter()
+        .chain(args.into_iter());
+
+    cargo(home, args).await
+}
+
+/// Run 'cargo publish' with the provided arguments and some sensible
+/// default ones.
+async fn cargo_publish<'s, I>(home: &Path, args: I) -> Result<()>
+where
+    I: IntoIterator<Item = &'s str>,
+{
+    let args = vec![
+        "publish",
+        "--locked",
+        "--no-verify",
+        "--allow-dirty",
+        "--registry",
+        REGISTRY,
+    ]
+    .into_iter()
+    .chain(args.into_iter());
+
+    cargo(home, args).await
+}
+
+/// Serve our registry.
+async fn serve_registry() -> (JoinHandle<()>, PathBuf, SocketAddr) {
+    let root = tempdir().unwrap();
+    let path = root.path();
+    let port = get_available_port().await;
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+
+    let server = move || {
+        let path = path.to_owned();
+        let addr = addr.clone();
+        async move { serve(&path, addr, addr).await.unwrap() }
+    };
+    let handle = spawn(server());
+    (handle, path.to_owned(), addr)
+}
+
+/// Check that we can publish a crate.
+#[tokio::test]
+async fn publish() {
+    let (_handle, _reg_root, addr) = serve_registry().await;
+
+    let src_root = tempdir().unwrap();
+    let src_root = src_root.path();
+    let home = setup_cargo_home(src_root, Locator::Socket(addr)).unwrap();
+
+    let my_lib = src_root.join("my-lib");
+    cargo_init(&home, ["--lib", my_lib.to_str().unwrap()])
+        .await
+        .unwrap();
+
+    cargo_publish(
+        &home,
+        [
+            "--manifest-path",
+            my_lib.join("Cargo.toml").to_str().unwrap(),
+        ],
+    )
+    .await
+    .unwrap();
+}
+
+async fn test_publish_and_consume(registry_locator: Locator) {
+    let src_root = tempdir().unwrap();
+    let src_root = src_root.path();
+    let home = setup_cargo_home(src_root, registry_locator).unwrap();
+
+    // Create a library crate, my-lib, and have it export a function, foo.
+    let my_lib = src_root.join("my-lib");
+    cargo_init(&home, ["--lib", my_lib.to_str().unwrap()])
+        .await
+        .unwrap();
+    let data = "pub fn foo() {}\n";
+    append(&my_lib.join("src").join("lib.rs"), data).unwrap();
+
+    cargo_publish(
+        &home,
+        [
+            "--manifest-path",
+            my_lib.join("Cargo.toml").to_str().unwrap(),
+        ],
+    )
+    .await
+    .unwrap();
+
+    // Create a binary create, my-bin, and make it consume my-lib::foo.
+    let my_bin = src_root.join("my-bin");
+    let cargo_toml = my_bin.join("Cargo.toml");
+    cargo_init(&home, ["--bin", my_bin.to_str().unwrap()])
+        .await
+        .unwrap();
+    let data = format!(r#"my-lib = {{version = "*", registry = "{}"}}"#, REGISTRY);
+    append(&cargo_toml, data).unwrap();
+
+    let data = "#[allow(unused_imports)] use my_lib::foo;\n";
+    append(&my_bin.join("src").join("main.rs"), data).unwrap();
+
+    // Now check the program. If we were unable to pull my-lib from the
+    // registry we'd get an error here.
+    cargo(
+        &home,
+        ["check", "--manifest-path", cargo_toml.to_str().unwrap()],
+    )
+    .await
+    .unwrap();
+}
+
+/// Check that we can consume a published crate over HTTP.
+#[tokio::test]
+async fn get_http() {
+    let (_handle, _, addr) = serve_registry().await;
+    test_publish_and_consume(Locator::Socket(addr)).await
+}
+
+/// Check that we can consume a published crate through the file system.
+#[tokio::test]
+async fn get_filesystem() {
+    let (_handle, root, _) = serve_registry().await;
+    test_publish_and_consume(Locator::Path(root.join("index"))).await
+}
