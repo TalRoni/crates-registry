@@ -8,8 +8,6 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    env:
-      SKIP_BUILDING_FRONTEND: 1
 
     steps:
       - name: Checkout code
@@ -19,4 +17,4 @@ jobs:
         run: docker build --target rust-builder -t crates-regisstry-test .
 
       - name: Run tests in the Docker container
-        run: docker run crates-regisstry-test cargo test
+        run: docker run -e SKIP_BUILDING_FRONTEND=1 crates-regisstry-test cargo test
