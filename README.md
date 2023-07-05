@@ -93,4 +93,4 @@ Tow utilities to import new crates:
 You can also publish crates using the `cargo publish` command.
 
 ## License
-Licensed under the terms of the GNU GENERAL PUBLIC LICENSE Version 3.
+Licensed under the terms of the GNU GENERAL PUBLIC LICENSE Version 3 and the Apache License (Version 2.0)
