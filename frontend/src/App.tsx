@@ -3,6 +3,8 @@ import { Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Home } from './components/Home';
 import { ManageInstallations } from './components/ManageInstallations';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function App() {
     return (
@@ -14,6 +16,7 @@ function App() {
                     <Route path="*" element={<Home />} />
                 </Route>
             </Routes>
+            <ToastContainer />
         </div>
     );
 }
