@@ -1,4 +1,4 @@
-import React, { FC, useState, useEffect } from "react";
+import React, { FC, useState, useEffect, useCallback } from "react";
 import {
   Button,
   ListGroup,
@@ -6,7 +6,7 @@ import {
   Popover,
   Form,
 } from "react-bootstrap";
-
+import { toast } from "react-toastify";
 import { OverlayInjectedProps } from "react-bootstrap/Overlay";
 
 type Versions = {
@@ -16,26 +16,18 @@ type Versions = {
 export const RustVersionsList: FC = () => {
   const [versions, setVersions] = useState<Versions>({});
 
+  const getVersions = useCallback(async () => {
+    const response = await fetch(`api/versions`);
+    if (!response.ok) {
+      throw Error(response.statusText);
+    }
+    const versionsRes = await response.json();
+    setVersions(versionsRes.versions);
+  }, []);
+
   useEffect(() => {
-    fetch(`api/versions`).then((response) => {
-      if (response.ok) {
-        response
-          .json()
-          .then((versionsRes) => {
-            setVersions(versionsRes.versions);
-          })
-          .catch((err) => {
-            console.log("error while parsing the json response: ", err);
-            setVersions({
-              "2023-03-01-nightly": [
-                "x86_64-unknown-linux-gnu",
-                "x86_64-windows-msvc",
-              ],
-              "1.67.1": ["x86_64-unknown-linux-gnu"],
-              "2023-02-11-nightly": ["x86_64-unknown-linux-gnu"],
-            });
-          });
-      }
+    toast.promise(getVersions(), {
+      error: "error while getting the versions list",
     });
   }, []);
 
@@ -93,7 +85,9 @@ const PlatformsPopover = React.forwardRef<HTMLDivElement, OverlayInjectedProps>(
                 target: { value },
               }: React.ChangeEvent<HTMLInputElement>) =>
                 setFilteredPlatforms(
-                  platforms.filter((platform: string) => platform.includes(value))
+                  platforms.filter((platform: string) =>
+                    platform.includes(value)
+                  )
                 )
               }
             />
