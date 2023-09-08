@@ -16,7 +16,7 @@ use warp::Filter;
 use crate::serve::ServerError;
 use crate::unpack;
 
-static FRONTEND: Dir<'_> = include_dir!("frontend/build/");
+static FRONTEND: Dir<'_> = include_dir!("$OUT_DIR/frontend_dist_folder/");
 
 fn available_platforms(root: &Path) -> Result<Vec<String>> {
     Ok(std::fs::read_dir(root.join("rustup").join("dist"))?

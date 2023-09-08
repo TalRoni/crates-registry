@@ -12,6 +12,7 @@ description = """
 Crates Registry is a tool for serve crates and rustup installation in offline networks.
 The project is based on panamax project and cargo-http-registry and use theis code.
 """
+include = ["/frontend/build", "/src", "build.rs"]
 
 [dependencies]
 anyhow = "1.0"
