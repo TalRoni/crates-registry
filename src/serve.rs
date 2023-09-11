@@ -55,28 +55,28 @@ impl From<Error> for RegistryErrors {
     }
 }
 
-pub enum BindingServer {
+pub enum ServerBinding {
     Addr(SocketAddr),
     Listener(TcpListener),
 }
 
-impl From<SocketAddr> for BindingServer {
+impl From<SocketAddr> for ServerBinding {
     fn from(binding_addr: SocketAddr) -> Self {
         Self::Addr(binding_addr)
     }
 }
 
-impl From<TcpListener> for BindingServer {
+impl From<TcpListener> for ServerBinding {
     fn from(listener: TcpListener) -> Self {
         Self::Listener(listener)
     }
 }
 
-impl BindingServer {
+impl ServerBinding {
     async fn to_listener(self) -> Result<TcpListener> {
         Ok(match self {
-            BindingServer::Addr(addr) => TcpListener::bind(addr).await?,
-            BindingServer::Listener(listener) => listener,
+            ServerBinding::Addr(addr) => TcpListener::bind(addr).await?,
+            ServerBinding::Listener(listener) => listener,
         })
     }
 }
@@ -103,7 +103,7 @@ where
 }
 
 /// Serve a registry at the given path on the given socket address.
-pub async fn serve(root: &Path, binding: impl Into<BindingServer>, server_addr: SocketAddr) -> Result<()> {
+pub async fn serve(root: &Path, binding: impl Into<ServerBinding>, server_addr: SocketAddr) -> Result<()> {
     let frontend = serve_frontend(root);
     let crates_folder = Arc::new(root.join("crates"));
     let index_folder = root.join("index");
