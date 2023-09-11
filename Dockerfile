@@ -15,7 +15,7 @@ RUN cargo install-update -a
 COPY . /code
 WORKDIR /code
 COPY --from=frontend-builder /code/frontend/build /code/frontend/build
-RUN export SKIP_BUILDING_FRONTEND=1 && cargo build --release
+RUN cargo build --release
 
 FROM debian:bullseye
 

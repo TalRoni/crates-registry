@@ -9,13 +9,15 @@ use anyhow::Result;
 use itertools::Itertools;
 use serde::Deserialize;
 use serde::Serialize;
+use tokio::net::TcpListener;
+use tokio_stream::wrappers::TcpListenerStream;
 use tracing::info;
 
 use warp::http::StatusCode;
 use warp::http::Uri;
+use warp::reject::Reject;
 use warp::Filter;
 use warp::Rejection;
-use warp::reject::Reject;
 
 use crate::index::handle_git;
 use crate::index::Index;
@@ -53,6 +55,32 @@ impl From<Error> for RegistryErrors {
     }
 }
 
+pub enum ServerBinding {
+    Addr(SocketAddr),
+    Listener(TcpListener),
+}
+
+impl From<SocketAddr> for ServerBinding {
+    fn from(binding_addr: SocketAddr) -> Self {
+        Self::Addr(binding_addr)
+    }
+}
+
+impl From<TcpListener> for ServerBinding {
+    fn from(listener: TcpListener) -> Self {
+        Self::Listener(listener)
+    }
+}
+
+impl ServerBinding {
+    async fn to_listener(self) -> Result<TcpListener> {
+        Ok(match self {
+            ServerBinding::Addr(addr) => TcpListener::bind(addr).await?,
+            ServerBinding::Listener(listener) => listener,
+        })
+    }
+}
+
 /// Convert a result back into a response.
 fn response<T>(result: Result<T>) -> Result<impl warp::Reply, warp::Rejection>
 where
@@ -61,11 +89,12 @@ where
     match result {
         Ok(inner) => {
             info!("request status: success");
-            Ok(warp::reply::with_status(inner.into_response(), StatusCode::OK))
+            Ok(warp::reply::with_status(
+                inner.into_response(),
+                StatusCode::OK,
+            ))
         }
-        Err(err) => {
-            Err(warp::reject::custom(ServerError(err)))
-        }
+        Err(err) => Err(warp::reject::custom(ServerError(err))),
     }
     // // Registries always respond with OK and use the JSON error array to
     // // indicate problems.
@@ -74,8 +103,8 @@ where
 }
 
 /// Serve a registry at the given path on the given socket address.
-pub async fn serve(root: &Path, binding_addr: SocketAddr, server_addr: SocketAddr) -> Result<()> {
-    let frontend = serve_frontend(root).await;
+pub async fn serve(root: &Path, binding: impl Into<ServerBinding>, server_addr: SocketAddr) -> Result<()> {
+    let frontend = serve_frontend(root);
     let crates_folder = Arc::new(root.join("crates"));
     let index_folder = root.join("index");
     let git_index = Arc::new(
@@ -189,7 +218,10 @@ pub async fn serve(root: &Path, binding_addr: SocketAddr, server_addr: SocketAdd
     // Despite the claim that this function "Returns [...] a Future that
     // can be executed on any runtime." not even the call itself can
     // happen outside of a tokio runtime. Boy.
-    warp::serve(routes).run(binding_addr).await;
+
+    warp::serve(routes)
+        .run_incoming(TcpListenerStream::new(binding.into().to_listener().await?))
+        .await;
 
     Ok(())
 }
