@@ -30,20 +30,14 @@ enum Locator {
     Socket(SocketAddr),
 }
 
-async fn get_available_port() -> u16 {
+async fn get_listener_in_available_port() -> TcpListener {
     for port in 5000..6000 {
-        if port_is_available(port).await {
-            return port
+        match TcpListener::bind(("127.0.0.1", port)).await {
+            Ok(listener) => return listener,
+            Err(_) => continue,
         }
     }
     panic!("No port available");
-}
-
-async fn port_is_available(port: u16) -> bool {
-    match TcpListener::bind(("127.0.0.1", port)).await {
-        Ok(_) => true,
-        Err(_) => false,
-    }
 }
 
 /// Append data to a file.
@@ -76,7 +70,9 @@ index = "{path}"
 token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 "#,
                 registry = REGISTRY,
-                path = Url::from_file_path(path).map_err(|_| anyhow!("Can't convert path to url"))?.to_string(),
+                path = Url::from_file_path(path)
+                    .map_err(|_| anyhow!("Can't convert path to url"))?
+                    .to_string(),
             )
         }
         Locator::Socket(addr) => {
@@ -151,16 +147,17 @@ where
 async fn serve_registry() -> (JoinHandle<()>, PathBuf, SocketAddr) {
     let root = tempdir().unwrap();
     let path = root.path();
-    let port = get_available_port().await;
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+        let listener = get_listener_in_available_port().await;
+        let addr = listener.local_addr().unwrap();
 
-    let server = move || {
-        let path = path.to_owned();
-        let addr = addr.clone();
-        async move { serve(&path, addr, addr).await.unwrap() }
-    };
-    let handle = spawn(server());
-    (handle, path.to_owned(), addr)
+        let server = move || {
+            let path = path.to_owned();
+            let addr = addr.clone();
+            async move { serve(&path, listener, addr).await.unwrap() }
+        };
+        let handle = spawn(server());
+
+        (handle, path.to_owned(), addr)
 }
 
 /// Check that we can publish a crate.

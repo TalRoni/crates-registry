@@ -96,7 +96,7 @@ fn available_versions(root: &Path) -> Result<Versions> {
     Ok(Versions { versions })
 }
 
-async fn frontend_api(
+fn frontend_api(
     root: &Path,
 ) -> impl warp::Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     let path_for_platforms = root.to_path_buf();
@@ -160,7 +160,7 @@ async fn frontend_api(
         .or(load_pack_file)
 }
 
-pub async fn serve_frontend(
+pub fn serve_frontend(
     root: &Path,
 ) -> impl warp::Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     let home_page = warp::get().and(warp::path::end()).and_then(|| async {
@@ -179,6 +179,6 @@ pub async fn serve_frontend(
                 .map(|f| Response::new(Body::from(f.contents())))
         });
 
-    let api = frontend_api(&root).await;
+    let api = frontend_api(&root);
     home_page.or(api).or(static_files)
 }
