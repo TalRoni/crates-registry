@@ -1,7 +1,7 @@
 # Crates Registry
 ![](frontend/public/logo192.png)  
-[![Static Badge](https://img.shields.io/badge/crates.io-v0.1.2-blue)](https://crates.io/crates/crates-registry)
-[![Static Badge](https://img.shields.io/badge/docker-v0.1.2-blue)](https://hub.docker.com/r/talroni/crates-registry)  
+[![Static Badge](https://img.shields.io/badge/crates.io-v0.1.3-blue)](https://crates.io/crates/crates-registry)
+[![Static Badge](https://img.shields.io/badge/docker-v0.1.3-blue)](https://hub.docker.com/r/talroni/crates-registry)
 ## Description
 
 Crates Registry is a tool for serving and publishing crates and serving rustup installation in offline networks. (like Verdaccio as npm registry)
