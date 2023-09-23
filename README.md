@@ -1,4 +1,6 @@
 # Crates Registry
+[![Static Badge](https://img.shields.io/badge/crates.io-v0.1.2-blue)](https://crates.io/crates/crates-registry)
+[![Static Badge](https://img.shields.io/badge/docker-v0.1.2-blue)](https://hub.docker.com/r/talroni/crates-registry)
 ![](frontend/public/logo192.png)
 ## Description
 
