@@ -31,7 +31,7 @@ Packing rust installations on the online side to serve later in the offline netw
 We download the rust installations in self-contained directories and pack the directory in tar file.
 packing example:
 ```bash
-$ crates-registry pack --pack-file packed_file.tar --rust-versions 1.67.1,04-03-2023-nightly --platfroms x86_64-unknown-linux-gnu
+$ crates-registry pack --pack-file packed_file.tar --rust-versions 1.67.1,04-03-2023-nightly --platforms x86_64-unknown-linux-gnu
 ```
 Run `crates-registry pack --help` for all available options.
 
