@@ -180,6 +180,30 @@ pub async fn serve(root: &Path, binding: impl Into<ServerBinding>, server_addr: 
             path.parse::<Uri>().map(warp::redirect).unwrap()
         })
         .with(warp::trace::request());
+    let download_head = warp::head()
+        .and(warp::path("api"))
+        .and(warp::path("v1"))
+        .and(warp::path("crates"))
+        .and(warp::path::param())
+        .and(warp::path::param())
+        .and(warp::path("download"))
+        .map(move |name: String, version: String| {
+            let crate_path = crate_path(&name).join(crate_file_name(&name, &version));
+            let path = format!(
+                "/crates/{}",
+                crate_path
+                    .components()
+                    .map(|c| format!("{}", c.as_os_str().to_str().unwrap()))
+                    .join("/")
+            );
+
+            // TODO: Ideally we shouldn't unwrap here. That's not that easily
+            //       possible, though, because then we'd need to handle errors
+            //       and we can't use the response function because it will
+            //       overwrite the HTTP status even on success.
+            path.parse::<Uri>().map(warp::redirect).unwrap()
+        })
+        .with(warp::trace::request());
     let publish = warp::put()
         .and(warp::path("api"))
         .and(warp::path("v1"))
@@ -210,6 +234,7 @@ pub async fn serve(root: &Path, binding: impl Into<ServerBinding>, server_addr: 
     let routes = frontend
         .or(crates)
         .or(download)
+        .or(download_head)
         .or(publish)
         .or(dist_dir)
         .or(rustup_dir)
