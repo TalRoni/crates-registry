@@ -100,9 +100,9 @@ fn frontend_api(
     root: &Path,
 ) -> impl warp::Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     let path_for_platforms = root.to_path_buf();
-    let available_platforms = warp::get()
-        .and(warp::path("api"))
+    let available_platforms = warp::path("api")
         .and(warp::path("available-platforms"))
+        .and(warp::get())
         .and_then(move || {
             let path_for_api = path_for_platforms.clone();
             async move {
@@ -114,9 +114,9 @@ fn frontend_api(
         });
 
     let path_for_versions = root.to_path_buf();
-    let versions_for_channel = warp::get()
-        .and(warp::path("api"))
+    let versions_for_channel = warp::path("api")
         .and(warp::path("versions"))
+        .and(warp::get())
         .and_then(move || {
             let path_for_version = path_for_versions.clone();
             async move {
@@ -126,9 +126,9 @@ fn frontend_api(
             }
         });
     let path_for_loading = root.to_path_buf();
-    let load_pack_file = warp::put()
-        .and(warp::path("api"))
+    let load_pack_file = warp::path("api")
         .and(warp::path("load-pack-file"))
+        .and(warp::put())
         .and(warp::body::bytes())
         .and(warp::header::optional::<String>("Content-Type"))
         .and_then(move |data: Bytes, content_type: Option<String>| {
@@ -163,12 +163,14 @@ fn frontend_api(
 pub fn serve_frontend(
     root: &Path,
 ) -> impl warp::Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    let home_page = warp::get().and(warp::path::end()).and_then(|| async {
-        FRONTEND
-            .get_file("index.html")
-            .ok_or_else(warp::reject::not_found)
-            .map(|f| warp::reply::html(f.contents()))
-    });
+    let home_page = warp::path::end()
+        .and(warp::get())
+        .and_then(|| async {
+            FRONTEND
+                .get_file("index.html")
+                .ok_or_else(warp::reject::not_found)
+                .map(|f| warp::reply::html(f.contents()))
+        });
 
     let static_files = warp::get()
         .and(warp::path::tail())

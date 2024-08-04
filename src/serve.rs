@@ -156,13 +156,13 @@ pub async fn serve(root: &Path, binding: impl Into<ServerBinding>, server_addr: 
     let crates = warp::path("crates")
         .and(warp::fs::dir(crates_folder.to_path_buf()))
         .with(warp::trace::request());
-    let download = warp::get()
-        .and(warp::path("api"))
+    let download = warp::path("api")
         .and(warp::path("v1"))
         .and(warp::path("crates"))
         .and(warp::path::param())
         .and(warp::path::param())
         .and(warp::path("download"))
+        .and(warp::get())
         .map(move |name: String, version: String| {
             let crate_path = crate_path(&name).join(crate_file_name(&name, &version));
             let path = format!(
@@ -180,11 +180,11 @@ pub async fn serve(root: &Path, binding: impl Into<ServerBinding>, server_addr: 
             path.parse::<Uri>().map(warp::redirect).unwrap()
         })
         .with(warp::trace::request());
-    let publish = warp::put()
-        .and(warp::path("api"))
+    let publish = warp::path("api")
         .and(warp::path("v1"))
         .and(warp::path("crates"))
         .and(warp::path("new"))
+        .and(warp::put())
         .and(warp::path::end())
         .and(warp::body::bytes())
         // We cap total body size to 20 MiB to have some upper bound. At the
