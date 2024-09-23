@@ -225,11 +225,21 @@ async fn publish_and_consume_download_endpoint() {
     let existing_crate_and_version_status = send_download_request(addr, Method::GET, "my-lib", "0.1.0").await;
     assert_eq!(existing_crate_and_version_status, 200);
 
+    let existing_crate_and_version_status = send_download_request(addr, Method::HEAD, "my-lib", "0.1.0").await;
+    assert_eq!(existing_crate_and_version_status, 200);
+
     let existing_crate_and_missing_version_status = send_download_request(addr, Method::GET, "my-lib", "99.99.99").await;
+    assert_eq!(existing_crate_and_missing_version_status, 404);
+
+    let existing_crate_and_missing_version_status = send_download_request(addr, Method::HEAD, "my-lib", "99.99.99").await;
     assert_eq!(existing_crate_and_missing_version_status, 404);
 
     let missing_crate_and_status = send_download_request(addr, Method::GET, "ba93ba78-f47a-4a37-b25b-1c713e5d11f8", "99.99.99").await;
     assert_eq!(missing_crate_and_status, 404);
+
+    let missing_crate_and_status = send_download_request(addr, Method::HEAD, "ba93ba78-f47a-4a37-b25b-1c713e5d11f8", "99.99.99").await;
+    assert_eq!(missing_crate_and_status, 404);
+
 }
 
 async fn test_publish_and_consume(registry_locator: Locator) {
